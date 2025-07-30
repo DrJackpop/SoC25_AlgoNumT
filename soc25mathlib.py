@@ -729,37 +729,54 @@ def gausselim(A: list[list[int]], p: int) -> list[int]:
     Returns:
         list[int]: The vector that is the solution of the relation Ax=b
     """
-    m=len(A)
-    n=len(A[0])
-    B=[row.copy() + [1 if i == j else 0 for j in range(len(A))] for i, row in enumerate(A)]
-    r=0
-    for j in range(n):
-        l=0
-        i=r
-        while l==0 and i <m-1:
-            i+=1
-            if B[i][j]%p!=0:
-                l=i
-        if l!=0:
-            r+=1
-            B[r],B[l]=B[l],B[r]
-            inv=mod_inv(B[r][j],p)
-            B[r]=[inv*e for e in B[r]]
-            for i in range(m):
-                if i!=r:
-                    e=B[i][j]
-                    for b in range(n):
-                        B[i][b]-=e*B[r][b]
-                        B[i][b]%=p
-                        
-    x= [0]*n
-    for i in reversed(range(r)):
-        pivot_col = next((j for j in range(n) if B[i][j] == 1), -1)
-        if pivot_col == -1:
+    m, n = len(A), len(A[0])
+    M = [row.copy() for row in A]
+    pivot_cols = []
+    r = 0 
+
+    for c in range(n):
+        pivot = None
+        for i in range(r, m):
+            if M[i][c] % p != 0:
+                pivot = i
+                break
+        if pivot is None:
             continue
-        x[pivot_col] = B[i][-1]
-        for j in range(pivot_col + 1, n):
-            x[pivot_col] = (x[pivot_col] - B[i][j] * x[j]) % p
+
+        M[r], M[pivot] = M[pivot], M[r]
+
+        inv = mod_inv(M[r][c],p)
+        M[r] = [(val * inv) % p for val in M[r]]
+
+        for i in range(m):
+            if i == r:
+                continue
+            factor = M[i][c] % p
+            if factor:
+                M[i] = [(M[i][j] - factor * M[r][j]) % p for j in range(n)]
+
+        pivot_cols.append(c)
+        r += 1
+        if r == m:
+            break
+
+    r = len(pivot_cols)
+    if r == n:
+        return [0]*n
+
+    fc = [c for c in range(n) if c not in pivot_cols]
+    x = [0] * n
+    f = fc[0]
+    x[f] = 1
+
+    # Back-substitute: for each pivot row, x[pivot_col] = - sum_{j>pivot} M[row][j] * x[j]
+    for i in reversed(range(r)):
+        c = pivot_cols[i]
+        s = 0
+        for j in range(c + 1, n):
+            s = (s + M[i][j] * x[j]) % p
+        x[c] = (-s) % p
+
     return x
         
                     
@@ -904,13 +921,18 @@ def probabilistic_factor(n: int) -> list[tuple[int,int]]:
         d=pair_gcd(g-1,n)
     if d==0:
         return factor
-    print(d,n)
     factor=factor+probabilistic_factor(d)
-    print("here")
     factor=factor+probabilistic_factor(n//d)
-    print(factor)
     for i in range(len(factor)):
         for j in range(i,len(factor)):
-            if factor[j][0]>factor[i][0]:
+            if factor[j][0] < factor[i][0]:
                 factor[j],factor[i]=factor[i],factor[j]
+    i=0
+    while True:
+        if i>=len(factor)-1:
+            break
+        if factor[i][0]==factor[i+1][0]:
+            factor[i]=(factor[i][0],factor[i][1]+factor[i+1][1])
+            factor.pop(i+1)
+        i+=1
     return factor
